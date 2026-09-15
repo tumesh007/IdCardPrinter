@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.spec
+build/
+dist/
+*.log
+
+# Large binary artifacts (attached to GitHub Releases rather than git history)
+release/id-card-printer
+release/*.tar.gz
