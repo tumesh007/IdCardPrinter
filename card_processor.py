@@ -60,6 +60,16 @@ def rectify_card(im, corners, target_w=1184, target_h=758):
     PIL QUAD expects (TL_x, TL_y, BL_x, BL_y, BR_x, BR_y, TR_x, TR_y)
     """
     tl, tr, br, bl = corners
+    
+    if target_w is None or target_h is None:
+        width_top = np.hypot(tr[0] - tl[0], tr[1] - tl[1])
+        width_bot = np.hypot(br[0] - bl[0], br[1] - bl[1])
+        target_w = int(max(width_top, width_bot))
+        
+        height_left = np.hypot(bl[0] - tl[0], bl[1] - tl[1])
+        height_right = np.hypot(br[0] - tr[0], br[1] - tr[1])
+        target_h = int(max(height_left, height_right))
+
     quad_data = (tl[0], tl[1], bl[0], bl[1], br[0], br[1], tr[0], tr[1])
     warped = im.transform(
         (target_w, target_h),
@@ -154,7 +164,11 @@ def generate_a4_page(front_img, back_img, layout="document"):
       'document'  : Front and Back stacked vertically, large format for KYC / official filing
       'wallet'    : Exact 1:1 physical scale (89mm x 57mm) with center fold line and cut guides
       'all_in_one': Both 1:1 wallet cards (top) and enlarged document copy (bottom)
+      'full_document': Full page A4 print of a single document
     """
+    if layout == "full_document":
+        return generate_document_page(front_img)
+
     page_w, page_h = 2480, 3508
     page = Image.new("RGB", (page_w, page_h), "#ffffff")
     draw = ImageDraw.Draw(page)
@@ -318,4 +332,37 @@ def generate_a4_page(front_img, back_img, layout="document"):
         draw.line([(140, page_h - 110), (page_w - 140, page_h - 110)], fill="#cccccc", width=2)
         draw.text((page_w // 2, page_h - 75), "Print Settings: Paper Size = A4 | Scaling = 100% / Actual Size | Orientation = Portrait", fill="#666666", font=font(False, 22), anchor="mm")
 
+    return page
+
+def generate_document_page(doc_img):
+    """
+    Generates a 300 DPI A4 page containing a single full-page document,
+    scaled to fit while maintaining aspect ratio, with a 50-pixel margin.
+    """
+    page_w, page_h = 2480, 3508
+    page = Image.new('RGB', (page_w, page_h), "white")
+    
+    padding = 50
+    target_w = page_w - padding * 2
+    target_h = page_h - padding * 2
+    
+    img_ratio = doc_img.width / doc_img.height
+    target_ratio = target_w / target_h
+    
+    if img_ratio > target_ratio:
+        draw_w = target_w
+        draw_h = int(target_w / img_ratio)
+    else:
+        draw_h = target_h
+        draw_w = int(target_h * img_ratio)
+        
+    doc_resized = doc_img.resize((draw_w, draw_h), Image.Resampling.LANCZOS)
+    x = (page_w - draw_w) // 2
+    y = (page_h - draw_h) // 2
+    
+    page.paste(doc_resized, (x, y))
+    
+    draw = ImageDraw.Draw(page)
+    draw.rectangle([x, y, x + draw_w, y + draw_h], outline="#cccccc", width=2)
+    
     return page

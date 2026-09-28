@@ -62,8 +62,8 @@ class InteractiveCardCanvas(tk.Frame):
         header = ttk.Frame(self)
         header.pack(fill=tk.X, pady=(0, 4))
 
-        lbl = ttk.Label(header, text=self.title, font=("Helvetica", 10, "bold"))
-        lbl.pack(side=tk.LEFT)
+        self.title_lbl = ttk.Label(header, text=self.title, font=("Helvetica", 10, "bold"))
+        self.title_lbl.pack(side=tk.LEFT)
 
         btn_browse = ttk.Button(header, text="Browse...", command=self.browse_image)
         btn_browse.pack(side=tk.RIGHT, padx=1)
@@ -417,6 +417,11 @@ class IDCardPrinterApp(tk.Tk):
         rb3 = ttk.Radiobutton(row2, text="All-In-One Page (Wallet + KYC)", variable=self.var_layout, value="all_in_one")
         rb3.pack(side=tk.LEFT, padx=10)
 
+rb4 = ttk.Radiobutton(row2, text="Full A4 Document (Single Page)", variable=self.var_layout, value="full_document")
+        rb4.pack(side=tk.LEFT, padx=10)
+
+        self.var_layout.trace_add("write", self.on_layout_changed)
+
         # 4. Action Buttons Bar
         self.action_frame = ttk.Frame(self, padding=10)
         self.action_frame.pack(fill=tk.X)
@@ -442,7 +447,16 @@ class IDCardPrinterApp(tk.Tk):
         )
         self.status_bar.pack(side=tk.RIGHT, padx=5)
 
+def on_layout_changed(self, *args):
+        if self.var_layout.get() == "full_document":
+            self.back_editor.pack_forget()
+            self.front_editor.title_lbl.config(text="Document Image")
+        else:
+            self.back_editor.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+            self.front_editor.title_lbl.config(text="Front Side (Photo / Name)")
+            
     def set_busy(self, is_busy, message=""):
+
         """Controls visual feedback during operations."""
         if is_busy:
             self.config(cursor="watch")
@@ -546,16 +560,19 @@ class IDCardPrinterApp(tk.Tk):
         c = params["contrast"]
         wb = params["autowb"]
         ff = params["flatfield"]
+        layout = params["layout"]
 
         f_enh = None
         b_enh = None
+        
+        tw, th = (None, None) if layout == "full_document" else (1184, 758)
 
         if f_img is not None and len(f_pts) >= 4:
-            rf = card_processor.rectify_card(f_img, f_pts)
+            rf = card_processor.rectify_card(f_img, f_pts, target_w=tw, target_h=th)
             f_enh = card_processor.enhance_card(rf, brightness=b, contrast=c, auto_wb=wb, auto_flatfield=ff, is_front=True)
 
         if b_img is not None and len(b_pts) >= 4:
-            rb = card_processor.rectify_card(b_img, b_pts)
+            rb = card_processor.rectify_card(b_img, b_pts, target_w=tw, target_h=th)
             b_enh = card_processor.enhance_card(rb, brightness=b, contrast=c, auto_wb=wb, auto_flatfield=ff, is_front=False)
 
         # Fallback if only one side is loaded: duplicate or placeholder
