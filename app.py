@@ -417,7 +417,7 @@ class IDCardPrinterApp(tk.Tk):
         rb3 = ttk.Radiobutton(row2, text="All-In-One Page (Wallet + KYC)", variable=self.var_layout, value="all_in_one")
         rb3.pack(side=tk.LEFT, padx=10)
 
-rb4 = ttk.Radiobutton(row2, text="Full A4 Document (Single Page)", variable=self.var_layout, value="full_document")
+        rb4 = ttk.Radiobutton(row2, text="Full A4 Document (Single Page)", variable=self.var_layout, value="full_document")
         rb4.pack(side=tk.LEFT, padx=10)
 
         self.var_layout.trace_add("write", self.on_layout_changed)
@@ -447,7 +447,7 @@ rb4 = ttk.Radiobutton(row2, text="Full A4 Document (Single Page)", variable=self
         )
         self.status_bar.pack(side=tk.RIGHT, padx=5)
 
-def on_layout_changed(self, *args):
+    def on_layout_changed(self, *args):
         if self.var_layout.get() == "full_document":
             self.back_editor.pack_forget()
             self.front_editor.title_lbl.config(text="Document Image")
