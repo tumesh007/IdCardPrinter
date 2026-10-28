@@ -422,6 +422,18 @@ class IDCardPrinterApp(tk.Tk):
 
         self.var_layout.trace_add("write", self.on_layout_changed)
 
+        # Row 3: Clean page toggle
+        row3 = ttk.Frame(ctrl_frame)
+        row3.pack(fill=tk.X, pady=(6, 2))
+
+        self.var_clean = tk.BooleanVar(value=True)
+        cb_clean = ttk.Checkbutton(
+            row3,
+            text="Clean Output (No text, badges, or headers on PDF — pure print)",
+            variable=self.var_clean
+        )
+        cb_clean.pack(side=tk.LEFT, padx=5)
+
         # 4. Action Buttons Bar
         self.action_frame = ttk.Frame(self, padding=10)
         self.action_frame.pack(fill=tk.X)
@@ -546,7 +558,8 @@ class IDCardPrinterApp(tk.Tk):
             "contrast": float(self.scale_contrast.get()),
             "autowb": bool(self.var_autowb.get()),
             "flatfield": bool(self.var_flatfield.get()),
-            "layout": self.var_layout.get()
+            "layout": self.var_layout.get(),
+            "clean": bool(self.var_clean.get())
         }
 
     @staticmethod
@@ -590,7 +603,7 @@ class IDCardPrinterApp(tk.Tk):
 
         def worker():
             f_enh, b_enh = self.process_cards(params)
-            return card_processor.generate_a4_page(f_enh, b_enh, layout=params["layout"])
+            return card_processor.generate_a4_page(f_enh, b_enh, layout=params["layout"], clean=params.get("clean", True))
 
         def on_done(page):
             if page is None:
@@ -618,12 +631,14 @@ class IDCardPrinterApp(tk.Tk):
         tb.pack(fill=tk.X)
 
         layout_name = {
-            "document": "Document / KYC Copy (Large Centered)",
-            "wallet": "Wallet Card 1:1 Scale (Cut & Fold)",
-            "all_in_one": "All-In-One Page (Wallet + KYC)"
+            "document": "Document / KYC Copy",
+            "wallet": "Wallet Card 1:1 Scale",
+            "all_in_one": "All-In-One Page",
+            "full_document": "Full A4 Document"
         }.get(self.var_layout.get(), "Document")
 
-        ttk.Label(tb, text=f"Layout: {layout_name}", font=("Helvetica", 10, "bold")).pack(side=tk.LEFT, padx=5)
+        clean_label = " [Clean — No Text]" if self.var_clean.get() else ""
+        ttk.Label(tb, text=f"Layout: {layout_name}{clean_label}", font=("Helvetica", 10, "bold")).pack(side=tk.LEFT, padx=5)
 
         btn_save = ttk.Button(tb, text="📄 Export PDF Now...", command=lambda: [top.destroy(), self.save_pdf()])
         btn_save.pack(side=tk.RIGHT, padx=5)
@@ -660,7 +675,7 @@ class IDCardPrinterApp(tk.Tk):
 
         def worker():
             f_enh, b_enh = self.process_cards(params)
-            page = card_processor.generate_a4_page(f_enh, b_enh, layout=params["layout"])
+            page = card_processor.generate_a4_page(f_enh, b_enh, layout=params["layout"], clean=params.get("clean", True))
             page.save(path, "PDF", resolution=300.0)
             return path
 
