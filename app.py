@@ -5,6 +5,10 @@ import sys
 import queue
 import threading
 import traceback
+import shutil
+import subprocess
+import tempfile
+import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageOps
@@ -12,6 +16,115 @@ from PIL import Image, ImageOps
 # Add current dir to sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import card_processor
+
+
+def choose_open_file(title="Select File", filetypes=None, parent=None):
+    """
+    Uses GNOME Files (Nautilus) file chooser via Zenity when available on Linux,
+    with automatic fallback to Tkinter's native dialog.
+    """
+    if shutil.which("zenity"):
+        cmd = ["zenity", "--file-selection", f"--title={title}"]
+        if filetypes:
+            for name, pats in filetypes:
+                clean_pats = " ".join(pats.replace(";", " ").split())
+                cmd.append(f"--file-filter={name} | {clean_pats}")
+            cmd.append("--file-filter=All Files | *")
+        try:
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res.returncode == 0:
+                selected = res.stdout.strip()
+                if selected:
+                    return selected
+            return ""
+        except Exception:
+            pass
+
+    return filedialog.askopenfilename(
+        title=title,
+        filetypes=filetypes or [("All Files", "*.*")],
+        parent=parent
+    )
+
+
+def choose_save_file(title="Save File", default_filename="id_card_print.pdf", filetypes=None, parent=None):
+    """
+    Uses GNOME Files save dialog via Zenity when available,
+    with automatic fallback to Tkinter's native dialog.
+    """
+    if shutil.which("zenity"):
+        cmd = ["zenity", "--file-selection", "--save", "--confirm-overwrite", f"--title={title}"]
+        if default_filename:
+            cmd.append(f"--filename={default_filename}")
+        if filetypes:
+            for name, pats in filetypes:
+                clean_pats = " ".join(pats.replace(";", " ").split())
+                cmd.append(f"--file-filter={name} | {clean_pats}")
+            cmd.append("--file-filter=All Files | *")
+        try:
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res.returncode == 0:
+                selected = res.stdout.strip()
+                if selected:
+                    if default_filename and "." in default_filename:
+                        ext = os.path.splitext(default_filename)[1]
+                        if not selected.lower().endswith(ext.lower()):
+                            selected += ext
+                    return selected
+            return ""
+        except Exception:
+            pass
+
+    return filedialog.asksaveasfilename(
+        title=title,
+        initialfile=default_filename,
+        filetypes=filetypes or [("All Files", "*.*")],
+        parent=parent
+    )
+
+
+def choose_directory(title="Select Folder", parent=None):
+    """
+    Uses GNOME Files directory chooser via Zenity when available,
+    with automatic fallback to Tkinter's native dialog.
+    """
+    if shutil.which("zenity"):
+        cmd = ["zenity", "--file-selection", "--directory", f"--title={title}"]
+        try:
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res.returncode == 0:
+                selected = res.stdout.strip()
+                if selected:
+                    return selected
+            return ""
+        except Exception:
+            pass
+
+    return filedialog.askdirectory(title=title, parent=parent)
+
+
+def get_system_printers():
+    """Returns (list_of_printer_names, default_printer_name) from CUPS."""
+    printers = []
+    default_printer = None
+    if not shutil.which("lpstat"):
+        return printers, default_printer
+
+    try:
+        res = subprocess.run(["lpstat", "-p", "-d"], capture_output=True, text=True, timeout=5)
+        if res.returncode == 0:
+            for line in res.stdout.splitlines():
+                line = line.strip()
+                if line.startswith("printer "):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        printers.append(parts[1])
+                elif "default destination:" in line.lower():
+                    default_printer = line.split(":")[-1].strip()
+    except Exception:
+        pass
+
+    return printers, default_printer
 
 
 def make_tk_image(pil_img):
@@ -123,12 +236,12 @@ class InteractiveCardCanvas(tk.Frame):
 
     def browse_image(self):
         filetypes = [
-            ("All Supported Images", "*.jpg *.jpeg *.png *.webp *.bmp *.tiff"),
-            ("JPEG Images", "*.jpg *.jpeg"),
-            ("PNG Images", "*.png"),
+            ("All Supported Images", "*.jpg *.jpeg *.png *.webp *.bmp *.tiff *.JPG *.JPEG *.PNG *.WEBP *.BMP *.TIFF"),
+            ("PNG Images", "*.png *.PNG"),
+            ("JPEG Images", "*.jpg *.jpeg *.JPG *.JPEG"),
             ("All Files", "*.*")
         ]
-        path = filedialog.askopenfilename(title=f"Select {self.title}", filetypes=filetypes)
+        path = choose_open_file(title=f"Select {self.title} Image", filetypes=filetypes, parent=self)
         if path:
             self.load_image(path)
 
@@ -441,6 +554,9 @@ class IDCardPrinterApp(tk.Tk):
         self.btn_preview = ttk.Button(self.action_frame, text="👁  Preview Print Page", command=self.preview_page)
         self.btn_preview.pack(side=tk.LEFT, padx=5)
 
+        self.btn_print = ttk.Button(self.action_frame, text="🖨️  Direct Print A4...", command=self.direct_print)
+        self.btn_print.pack(side=tk.LEFT, padx=5)
+
         self.btn_pdf = ttk.Button(self.action_frame, text="📄  Export Print-Ready A4 PDF", command=self.save_pdf)
         self.btn_pdf.pack(side=tk.LEFT, padx=5)
 
@@ -474,6 +590,7 @@ class IDCardPrinterApp(tk.Tk):
             self.config(cursor="watch")
             self.progress_bar.start(10)
             self.btn_preview.config(state=tk.DISABLED)
+            self.btn_print.config(state=tk.DISABLED)
             self.btn_pdf.config(state=tk.DISABLED)
             self.btn_pngs.config(state=tk.DISABLED)
             self.status_bar.config(text=message, foreground="#c62828")
@@ -481,6 +598,7 @@ class IDCardPrinterApp(tk.Tk):
             self.config(cursor="")
             self.progress_bar.stop()
             self.btn_preview.config(state=tk.NORMAL)
+            self.btn_print.config(state=tk.NORMAL)
             self.btn_pdf.config(state=tk.NORMAL)
             self.btn_pngs.config(state=tk.NORMAL)
             self.status_bar.config(text=message, foreground="#2e7d32")
@@ -640,6 +758,9 @@ class IDCardPrinterApp(tk.Tk):
         clean_label = " [Clean — No Text]" if self.var_clean.get() else ""
         ttk.Label(tb, text=f"Layout: {layout_name}{clean_label}", font=("Helvetica", 10, "bold")).pack(side=tk.LEFT, padx=5)
 
+        btn_print = ttk.Button(tb, text="🖨️ Print Now...", command=lambda: [top.destroy(), self.direct_print()])
+        btn_print.pack(side=tk.RIGHT, padx=5)
+
         btn_save = ttk.Button(tb, text="📄 Export PDF Now...", command=lambda: [top.destroy(), self.save_pdf()])
         btn_save.pack(side=tk.RIGHT, padx=5)
 
@@ -660,15 +781,191 @@ class IDCardPrinterApp(tk.Tk):
         top.lift()
         top.focus_force()
 
+    def direct_print(self):
+        """Displays direct print modal dialog with CUPS printer selection, copies, and scaling options."""
+        params = self.get_processing_params()
+        if params is None:
+            return
+
+        printers, default_printer = get_system_printers()
+
+        # Open Print Options Dialog
+        dlg = tk.Toplevel(self)
+        dlg.title("Direct Print — A4 Page")
+        dlg.transient(self)
+        dlg.resizable(False, False)
+
+        # Center dialog relative to main window
+        dlg_w, dlg_h = 500, 360
+        mx = self.winfo_x() + (self.winfo_width() - dlg_w) // 2
+        my = self.winfo_y() + (self.winfo_height() - dlg_h) // 2
+        dlg.geometry(f"{dlg_w}x{dlg_h}+{max(50, mx)}+{max(50, my)}")
+
+        content = ttk.Frame(dlg, padding=20)
+        content.pack(fill=tk.BOTH, expand=True)
+
+        # Header
+        hdr = ttk.Frame(content)
+        hdr.pack(fill=tk.X, pady=(0, 15))
+        ttk.Label(hdr, text="🖨️  Print A4 Page Directly", font=("Helvetica", 13, "bold")).pack(side=tk.LEFT)
+
+        # Form grid
+        grid_frame = ttk.Frame(content)
+        grid_frame.pack(fill=tk.X, pady=5)
+        grid_frame.columnconfigure(1, weight=1)
+
+        # Printer Row
+        ttk.Label(grid_frame, text="Select Printer:", font=("Helvetica", 10, "bold")).grid(row=0, column=0, sticky=tk.W, pady=8, padx=(0, 12))
+        var_printer = tk.StringVar()
+        printer_combo = ttk.Combobox(grid_frame, textvariable=var_printer, state="readonly")
+        if printers:
+            printer_combo["values"] = printers
+            var_printer.set(default_printer if default_printer in printers else printers[0])
+        else:
+            printer_combo["values"] = ["No CUPS printer detected"]
+            var_printer.set("No CUPS printer detected")
+            printer_combo.config(state=tk.DISABLED)
+        printer_combo.grid(row=0, column=1, sticky=tk.EW, pady=8)
+
+        # Copies Row
+        ttk.Label(grid_frame, text="Copies:", font=("Helvetica", 10, "bold")).grid(row=1, column=0, sticky=tk.W, pady=8, padx=(0, 12))
+        var_copies = tk.IntVar(value=1)
+        spin_copies = ttk.Spinbox(grid_frame, from_=1, to=99, textvariable=var_copies, width=6)
+        spin_copies.grid(row=1, column=1, sticky=tk.W, pady=8)
+
+        # Scaling Row
+        ttk.Label(grid_frame, text="Scale / Fit:", font=("Helvetica", 10, "bold")).grid(row=2, column=0, sticky=tk.NW, pady=8, padx=(0, 12))
+        var_scale = tk.StringVar(value="actual")
+        scale_frame = ttk.Frame(grid_frame)
+        scale_frame.grid(row=2, column=1, sticky=tk.W, pady=8)
+        rb1 = ttk.Radiobutton(scale_frame, text="100% Actual Scale (Recommended — 1:1 ID Card / Wallet)", variable=var_scale, value="actual")
+        rb1.pack(anchor=tk.W, pady=1)
+        rb2 = ttk.Radiobutton(scale_frame, text="Fit to Printable Margins", variable=var_scale, value="fit")
+        rb2.pack(anchor=tk.W, pady=1)
+
+        # Page details indicator
+        layout_name = {
+            "document": "Document / KYC Copy",
+            "wallet": "Wallet Card 1:1 Scale",
+            "all_in_one": "All-In-One Page",
+            "full_document": "Full A4 Document"
+        }.get(params["layout"], "Document")
+        clean_name = "Clean (No Text)" if params.get("clean", True) else "With Labels & Badges"
+        lbl_info = ttk.Label(
+            content,
+            text=f"Layout: {layout_name}  •  {clean_name}\nPaper: A4 Standard (300 DPI)",
+            font=("Helvetica", 9),
+            foreground="#555555"
+        )
+        lbl_info.pack(fill=tk.X, pady=(10, 15))
+
+        # Bottom buttons
+        btn_box = ttk.Frame(content)
+        btn_box.pack(fill=tk.X, pady=(10, 0))
+
+        def on_open_viewer():
+            dlg.destroy()
+            self._open_in_system_viewer(params)
+
+        def on_confirm():
+            printer = var_printer.get()
+            if not printers or printer not in printers:
+                messagebox.showwarning("No Printer", "No valid printer selected. You can open the file in the System Document Viewer to print.")
+                return
+            copies = max(1, var_copies.get())
+            fit = (var_scale.get() == "fit")
+            dlg.destroy()
+            self._execute_print(params, printer, copies, fit)
+
+        btn_print = ttk.Button(btn_box, text="🖨️  Send to Printer", command=on_confirm)
+        btn_print.pack(side=tk.RIGHT, padx=(6, 0))
+
+        btn_cancel = ttk.Button(btn_box, text="Cancel", command=dlg.destroy)
+        btn_cancel.pack(side=tk.RIGHT, padx=6)
+
+        btn_viewer = ttk.Button(btn_box, text="👁 Open in System Viewer...", command=on_open_viewer)
+        btn_viewer.pack(side=tk.LEFT)
+
+        dlg.grab_set()
+        dlg.lift()
+        dlg.focus_force()
+
+    def _execute_print(self, params, printer_name, copies, fit_to_page):
+        """Sends generated A4 page directly to CUPS printer."""
+        def worker():
+            f_enh, b_enh = self.process_cards(params)
+            page = card_processor.generate_a4_page(f_enh, b_enh, layout=params["layout"], clean=params.get("clean", True))
+
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                temp_pdf = tmp.name
+            page.save(temp_pdf, "PDF", resolution=300.0)
+
+            cmd = ["lp", "-d", printer_name, "-o", "media=A4"]
+            if copies > 1:
+                cmd.extend(["-n", str(copies)])
+            if fit_to_page:
+                cmd.extend(["-o", "fit-to-page"])
+            else:
+                cmd.extend(["-o", "scaling=100"])
+            cmd.append(temp_pdf)
+
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            try:
+                os.remove(temp_pdf)
+            except Exception:
+                pass
+
+            if res.returncode != 0:
+                raise RuntimeError(res.stderr.strip() or f"lp command failed with exit code {res.returncode}")
+
+            return res.stdout.strip()
+
+        def on_done(job_info):
+            msg = f"Job sent to {printer_name}."
+            if job_info:
+                msg = f"{job_info}"
+            self.status_bar.config(text=f"✅ {msg}", foreground="#2e7d32")
+            messagebox.showinfo("Print Job Submitted", f"Successfully sent to {printer_name}!\n\n{job_info}")
+
+        def on_err(err):
+            err_msg = str(err)
+            self.status_bar.config(text=f"❌ Print failed: {err_msg}", foreground="#c62828")
+            messagebox.showerror("Print Failed", f"Failed to submit print job to {printer_name}:\n\n{err_msg}")
+
+        self.run_async(worker, on_done, on_error=on_err, busy_msg=f"⏳ Sending print job to {printer_name}...")
+
+    def _open_in_system_viewer(self, params):
+        """Generates A4 page and opens it in GNOME Document Viewer (evince / xdg-open)."""
+        def worker():
+            f_enh, b_enh = self.process_cards(params)
+            page = card_processor.generate_a4_page(f_enh, b_enh, layout=params["layout"], clean=params.get("clean", True))
+
+            temp_dir = tempfile.gettempdir()
+            temp_pdf = os.path.join(temp_dir, f"id_card_print_{int(time.time())}.pdf")
+            page.save(temp_pdf, "PDF", resolution=300.0)
+
+            viewer = shutil.which("evince") or shutil.which("xdg-open")
+            if viewer:
+                subprocess.Popen([viewer, temp_pdf])
+            else:
+                raise RuntimeError("No document viewer (evince / xdg-open) found on system.")
+            return temp_pdf
+
+        def on_done(path):
+            self.status_bar.config(text=f"✅ Opened in system viewer: {os.path.basename(path)}", foreground="#2e7d32")
+
+        self.run_async(worker, on_done, busy_msg="⏳ Opening A4 Page in System Viewer...")
+
     def save_pdf(self):
         params = self.get_processing_params()
         if params is None:
             return
 
-        path = filedialog.asksaveasfilename(
+        path = choose_save_file(
             title="Save Print-Ready A4 PDF",
-            defaultextension=".pdf",
-            filetypes=[("PDF Document", "*.pdf")]
+            default_filename="id_card_print.pdf",
+            filetypes=[("PDF Documents", "*.pdf *.PDF")],
+            parent=self
         )
         if not path:
             return
@@ -691,7 +988,7 @@ class IDCardPrinterApp(tk.Tk):
         if params is None:
             return
 
-        folder = filedialog.askdirectory(title="Select Folder to Save Enhanced Images")
+        folder = choose_directory(title="Select Folder to Save Enhanced Images", parent=self)
         if not folder:
             return
 
