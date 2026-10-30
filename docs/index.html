@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ID Card & Document Printer (A4 300 DPI)</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖨️</text></svg>">
+</head>
+<body>
+
+  <header>
+    <div class="logo-area">
+      <span class="logo-icon">🖨️</span>
+      <div>
+        <h1>ID Card & Document Printer</h1>
+        <div class="subtitle">Print-Ready 300 DPI Single-Page A4 Layouts • 100% Client-Side & Private</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button id="btnLoadSamples" class="btn btn-sm">⚡ Load Sample Cards</button>
+      <button id="btnSwapSides" class="btn btn-sm">⇄ Swap Sides</button>
+      <button id="btnClearAll" class="btn btn-sm">🗑️ Clear</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Mode Switcher -->
+    <div class="mode-bar">
+      <button id="modeIdCard" class="mode-btn active">🪪 ID Card Mode (Front & Back)</button>
+      <button id="modeDocument" class="mode-btn">📄 Full Document Mode (Single Page)</button>
+    </div>
+
+    <!-- Card Slots -->
+    <div class="cards-container">
+      <!-- Front Side Slot -->
+      <div id="frontSlot" class="card-slot">
+        <div class="slot-header">
+          <span id="frontTitle" class="slot-title">Front Side (Photo / Name)</span>
+          <button id="frontClearBtn" class="btn btn-sm" style="display: none;">Remove</button>
+        </div>
+        <div id="frontDropZone" class="canvas-wrapper">
+          <canvas id="frontCanvas"></canvas>
+          <div id="frontPlaceholder" class="slot-placeholder">
+            <span>📷</span>
+            <p><strong>Click or Drag Photo Here</strong></p>
+            <p style="font-size: 0.8rem; margin-top: 4px;">PNG, JPG, WEBP, BMP</p>
+          </div>
+        </div>
+        <div class="slot-actions">
+          <button id="frontBrowseBtn" class="btn btn-sm btn-primary">📁 Select Photo</button>
+          <button id="frontCameraBtn" class="btn btn-sm">📷 Take Photo</button>
+          <button id="frontCropBtn" class="btn btn-sm" disabled>✂️ Crop / Edit</button>
+          <button id="frontRotateBtn" class="btn btn-sm" disabled>🔄 Rotate 90°</button>
+          <input type="file" id="frontFileInput" accept="image/*">
+          <input type="file" id="frontCameraInput" accept="image/*" capture="environment">
+        </div>
+      </div>
+
+      <!-- Back Side Slot -->
+      <div id="backSlot" class="card-slot">
+        <div class="slot-header">
+          <span id="backTitle" class="slot-title">Back Side (Address / Barcode)</span>
+          <button id="backClearBtn" class="btn btn-sm" style="display: none;">Remove</button>
+        </div>
+        <div id="backDropZone" class="canvas-wrapper">
+          <canvas id="backCanvas"></canvas>
+          <div id="backPlaceholder" class="slot-placeholder">
+            <span>📷</span>
+            <p><strong>Click or Drag Photo Here</strong></p>
+            <p style="font-size: 0.8rem; margin-top: 4px;">PNG, JPG, WEBP, BMP</p>
+          </div>
+        </div>
+        <div class="slot-actions">
+          <button id="backBrowseBtn" class="btn btn-sm btn-primary">📁 Select Photo</button>
+          <button id="backCameraBtn" class="btn btn-sm">📷 Take Photo</button>
+          <button id="backCropBtn" class="btn btn-sm" disabled>✂️ Crop / Edit</button>
+          <button id="backRotateBtn" class="btn btn-sm" disabled>🔄 Rotate 90°</button>
+          <input type="file" id="backFileInput" accept="image/*">
+          <input type="file" id="backCameraInput" accept="image/*" capture="environment">
+        </div>
+      </div>
+    </div>
+
+    <!-- Processing Controls -->
+    <div class="controls-panel">
+      <!-- Exposure row -->
+      <div class="panel-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="chkAutoWb" checked>
+          <span>Auto White Balance</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="chkFlatField" checked>
+          <span>Remove Shadows (Flat-Field)</span>
+        </label>
+        <div class="slider-group">
+          <span>Brightness:</span>
+          <input type="range" id="sliderBrightness" min="0.7" max="1.4" step="0.05" value="1.0">
+          <span id="lblBrightness">100%</span>
+        </div>
+        <div class="slider-group">
+          <span>Contrast:</span>
+          <input type="range" id="sliderContrast" min="0.7" max="1.4" step="0.05" value="1.0">
+          <span id="lblContrast">100%</span>
+        </div>
+      </div>
+
+      <!-- Layout row -->
+      <div class="panel-row">
+        <span class="layout-title">Print Layout (Single Page A4):</span>
+        <div class="layout-group">
+          <label class="radio-label">
+            <input type="radio" name="layout" value="document" checked>
+            <span>Document / KYC Copy (Large Centered)</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="layout" value="wallet">
+            <span>Wallet Card 1:1 Scale (Cut & Fold)</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="layout" value="all_in_one">
+            <span>All-In-One Page (Wallet + KYC)</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="layout" value="full_document">
+            <span>Full A4 Document (Single Page)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Clean Output row -->
+      <div class="panel-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="chkCleanOutput" checked>
+          <span style="font-weight: 600;">Clean Output (No text, badges, or headers on PDF — pure print)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <button id="btnPreview" class="btn btn-primary">👁  Preview Print Page</button>
+      <button id="btnPrint" class="btn btn-success">🖨️  Direct Print A4...</button>
+      <button id="btnSavePdf" class="btn">📄  Download A4 PDF</button>
+      <button id="btnSavePngs" class="btn">💾  Save Enhanced PNGs</button>
+      <span id="statusMsg">Ready. Load cards to begin.</span>
+    </div>
+  </main>
+
+  <!-- Modal: Interactive Cropper -->
+  <div id="cropModal" class="modal-overlay">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="cropModalTitle">Align & Crop Card</h3>
+        <button id="cropCloseBtn" class="btn btn-sm">✕ Close</button>
+      </div>
+      <div class="modal-body">
+        <canvas id="cropCanvas"></canvas>
+      </div>
+      <div class="modal-footer">
+        <div style="display: flex; gap: 8px;">
+          <button id="cropRotateBtn" class="btn btn-sm">🔄 Rotate 90°</button>
+          <button id="cropResetBtn" class="btn btn-sm">↺ Reset Box</button>
+        </div>
+        <button id="cropApplyBtn" class="btn btn-primary">✓ Apply Crop & Rectify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: A4 Print Preview -->
+  <div id="previewModal" class="modal-overlay">
+    <div class="modal-dialog" style="max-width: 800px;">
+      <div class="modal-header">
+        <h3 id="previewTitle">A4 Print Preview (300 DPI)</h3>
+        <button id="previewCloseBtn" class="btn btn-sm">✕ Close</button>
+      </div>
+      <div class="modal-body" style="padding: 10px;">
+        <canvas id="previewCanvas"></canvas>
+      </div>
+      <div class="modal-footer">
+        <span id="previewInfo" style="font-size: 0.85rem; color: var(--text-muted);">A4 Portrait (2480 × 3508 px)</span>
+        <div style="display: flex; gap: 10px;">
+          <button id="previewPrintBtn" class="btn btn-success">🖨️ Print Now...</button>
+          <button id="previewPdfBtn" class="btn btn-primary">📄 Download PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden Container for @media print -->
+  <div id="printContainer" style="display: none;"></div>
+
+  <!-- Scripts -->
+  <script src="js/perspective.js"></script>
+  <script src="js/enhancer.js"></script>
+  <script src="js/cropper.js"></script>
+  <script src="js/composer.js"></script>
+  <script src="js/pdf-writer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

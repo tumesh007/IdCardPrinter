@@ -1,0 +1,9 @@
+{
+  "name": "ID Card & Document Printer",
+  "short_name": "ID Printer",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "description": "Print-ready 300 DPI A4 single page ID card and document layout generator."
+}
