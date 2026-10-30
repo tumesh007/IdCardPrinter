@@ -1,6 +1,9 @@
 # ID Card Print Utility
 
-A lightweight desktop GUI application to crop, fix exposure, and fit ID cards (Aadhaar, Voter ID, PAN, Driving License) onto a single A4 page for printing.
+A lightweight application to crop, fix exposure, and fit ID cards (Aadhaar, Voter ID, PAN, Driving License) and full documents onto a single A4 page for printing.
+
+🌐 **Use the Online WebApp**: **[https://tumesh007.github.io/IdCardPrinter/](https://tumesh007.github.io/IdCardPrinter/)**  
+*(Works on all devices — iPhones, Android, Mac, Windows, Linux, and Chromebooks with zero installation! 100% private & client-side).*
 
 ---
 
